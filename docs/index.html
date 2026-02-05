@@ -211,8 +211,7 @@
 </main>
 
 <!-- Supabase JS (CDN) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
   /***********************
    *  SUPABASE CONFIG
@@ -220,8 +219,8 @@
   const SUPABASE_URL = "https://nplvnisfdhdcxynxpwll.supabase.co"
   ";
   const SUPABASE_ANON_KEY = "sb_publishable_Gp4M0oxslUtmjtSC5i3gCQ_nILxwnqs";
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+  const { createClient } = supabaseJs;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   /***********************
    *  STORAGE (LOCAL)
    ***********************/
