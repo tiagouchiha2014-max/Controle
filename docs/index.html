@@ -750,7 +750,7 @@
     if(!email) return alert("Informe seu email.");
 
     try{
-      const redirectTo = window.location.origin + window.location.pathname;
+      const redirectTo = "https://tiagouchiha2014-max.github.io/controle/";
       const { error } = await sb.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: redirectTo }
