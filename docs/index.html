@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Controle de Chuva</title>
+  <title>Controle de Chuva • Fazendas e Talhões</title>
   <style>
     :root { --bg:#0b1220; --card:#111b33; --txt:#e8eefc; --muted:#b7c3e6; --ok:#3ddc97; --warn:#ffcc66; --bad:#ff6b6b; --b:#223159; }
     *{box-sizing:border-box}
@@ -15,10 +15,8 @@
     .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
     .card{background:rgba(17,27,51,.9);border:1px solid var(--b);border-radius:16px;padding:14px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
     .span6{grid-column:span 6}
-    .span4{grid-column:span 4}
-    .span8{grid-column:span 8}
     .span12{grid-column:span 12}
-    @media (max-width:900px){ .span6,.span4,.span8{grid-column:span 12} }
+    @media (max-width:900px){ .span6{grid-column:span 12} }
     label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
     input,select,button,textarea{
       width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--b);
@@ -42,33 +40,19 @@
     .tag.warn{color:#2a1a00;background:var(--warn);border-color:var(--warn)}
     .tag.bad{color:#2a0000;background:var(--bad);border-color:var(--bad)}
     table{width:100%;border-collapse:collapse;margin-top:10px}
-    th,td{padding:10px 8px;border-bottom:1px solid var(--b);font-size:13px;text-align:left}
+    th,td{padding:10px 8px;border-bottom:1px solid var(--b);font-size:13px;text-align:left;vertical-align:top}
     th{color:var(--muted);font-weight:600}
     .small{font-size:12px;color:var(--muted)}
     canvas{width:100%;height:220px;border-radius:14px;border:1px solid var(--b);background:#0c1530}
     .note{font-size:12px;color:var(--muted);line-height:1.4}
     .flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-
-    /* ====== PDF/PRINT ====== */
-    .print-only{display:none}
-    @media print{
-      body{background:#fff !important;color:#000 !important}
-      .card{background:#fff !important; box-shadow:none !important; border:1px solid #ccc !important}
-      .tag{border-color:#ccc !important}
-      button, input, select, textarea, .btns, .note, #filePick { display:none !important; }
-      canvas{display:none !important}
-      .print-only{display:block !important}
-      #chartImg{width:100% !important; height:auto !important; border:1px solid #ccc !important; border-radius:10px !important}
-      th, td{border-bottom:1px solid #ddd !important; color:#000 !important}
-      th{color:#333 !important}
-      tr{page-break-inside:avoid}
-    }
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid var(--b);background:#0c1530;font-size:12px;color:var(--muted)}
   </style>
 </head>
 <body>
 <header>
   <h1>🌧️ Controle de Chuva</h1>
-  <p>Registre precipitação em mm, acompanhe totais e receba alertas por limite. Agora com login + sincronização automática.</p>
+  <p>Agora com Fazendas + Talhões, sincronização automática e atualização em tempo real.</p>
 </header>
 
 <main>
@@ -77,9 +61,10 @@
       <div class="flex">
         <span class="tag" id="statusTag">Sem alerta</span>
         <span class="small" id="lastSave">—</span>
+        <span class="pill" id="scopePill">—</span>
       </div>
 
-      <!-- ===== LOGIN + SYNC ===== -->
+      <!-- LOGIN -->
       <label>Login (para sincronizar entre aparelhos)</label>
       <div class="row">
         <input id="email" type="email" placeholder="seuemail@exemplo.com" />
@@ -91,6 +76,21 @@
       </div>
       <div class="small" id="authState">Deslogado</div>
       <div class="small" id="syncState">Sync: —</div>
+
+      <hr style="border:0;border-top:1px solid var(--b);margin:14px 0">
+
+      <!-- FAZENDA / TALHÃO -->
+      <label>Fazenda</label>
+      <div class="row">
+        <select id="farmSelect"></select>
+        <button id="btnFarmManage" class="ghost">Gerenciar fazendas</button>
+      </div>
+
+      <label>Talhão</label>
+      <div class="row">
+        <select id="plotSelect"></select>
+        <button id="btnPlotManage" class="ghost">Gerenciar talhões</button>
+      </div>
 
       <hr style="border:0;border-top:1px solid var(--b);margin:14px 0">
 
@@ -136,14 +136,13 @@
 
       <div class="btns">
         <button id="btnExport" class="ghost">Exportar CSV</button>
-        <button id="btnPdf" class="ghost">Salvar PDF</button>
-        <button id="btnImport" class="ghost">Importar JSON</button>
         <button id="btnBackup" class="ghost">Baixar backup (JSON)</button>
+        <button id="btnImport" class="ghost">Importar JSON</button>
         <button id="btnWipe" class="danger">Apagar tudo</button>
       </div>
 
       <div class="note" style="margin-top:10px">
-        Offline-first: se não tiver internet, salva no celular e sincroniza automaticamente quando voltar.
+        Offline-first: salva localmente e sincroniza automaticamente quando possível.
       </div>
       <input id="filePick" type="file" accept="application/json" style="display:none" />
     </div>
@@ -164,7 +163,7 @@
         </div>
       </div>
 
-      <label>Filtro rápido</label>
+      <label>Filtro</label>
       <div class="row">
         <select id="filterRange">
           <option value="7">Últimos 7 dias</option>
@@ -176,20 +175,18 @@
         <input id="search" placeholder="Buscar por local/observação..." />
       </div>
 
-      <label>Gráfico (mm por dia)</label>
+      <label>Gráfico (mm por dia • talhão selecionado)</label>
       <canvas id="chart" width="900" height="300"></canvas>
-      <img id="chartImg" class="print-only" alt="Gráfico de chuva (mm por dia)" />
-      <div class="small">Cada barra = soma do dia no período selecionado.</div>
+      <div class="small">Cada barra = soma do dia no período (fazenda/talhão atuais).</div>
     </div>
 
     <div class="card span12">
       <div class="flex" style="justify-content:space-between">
         <div>
-          <strong>Histórico</strong>
+          <strong>Histórico (fazenda/talhão atuais)</strong>
           <div class="small" id="countInfo">0 registros</div>
         </div>
         <div class="flex">
-          <button class="ghost" id="btnDemo">Gerar dados de teste</button>
           <button class="ghost" id="btnSort">Ordenar: mais recentes</button>
         </div>
       </div>
@@ -199,6 +196,8 @@
           <tr>
             <th>Data/hora</th>
             <th>mm</th>
+            <th>Fazenda</th>
+            <th>Talhão</th>
             <th>Local</th>
             <th>Obs.</th>
             <th></th>
@@ -210,7 +209,7 @@
   </section>
 </main>
 
-<!-- Supabase JS (CDN) -->
+<!-- Supabase UMD -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
   /***********************
@@ -218,56 +217,50 @@
    ***********************/
   const SUPABASE_URL = "https://nplvnisfdhdcxynxpwll.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_Gp4M0oxslUtmjtSC5i3gCQ_nILxwnqs";
-
-  // ✅ UMD expõe "supabase" global
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   /***********************
    *  STORAGE (LOCAL)
    ***********************/
-  const KEY = "rain_control_v2";
-  const KEY_CFG = "rain_control_cfg_v2";
-  const KEY_QUEUE = "rain_control_queue_v2"; // fila de sync
+  const KEY_READ = "rain_readings_v3";
+  const KEY_FARMS = "rain_farms_v1";
+  const KEY_PLOTS = "rain_plots_v1";
+  const KEY_CFG   = "rain_cfg_v3";
+  const KEY_QUEUE = "rain_queue_v3";
 
-  function loadData(){
-    try { return JSON.parse(localStorage.getItem(KEY)) ?? []; }
-    catch { return []; }
+  function safeParse(k, fallback){
+    try { return JSON.parse(localStorage.getItem(k)) ?? fallback; }
+    catch { return fallback; }
   }
-  function saveData(arr){
-    localStorage.setItem(KEY, JSON.stringify(arr));
+  function safeSave(k, v){
+    localStorage.setItem(k, JSON.stringify(v));
     document.getElementById("lastSave").textContent = "Salvo: " + new Date().toLocaleString();
   }
 
-  function loadCfg(){
-    try {
-      return JSON.parse(localStorage.getItem(KEY_CFG)) ?? {
-        limitDaily: 50,
-        limitHour: 20,
-        sort: "desc"
-      };
-    } catch {
-      return { limitDaily: 50, limitHour: 20, sort: "desc" };
-    }
-  }
-  function saveCfg(cfg){
-    localStorage.setItem(KEY_CFG, JSON.stringify(cfg));
-  }
+  let readings = safeParse(KEY_READ, []);
+  let farms    = safeParse(KEY_FARMS, []);
+  let plots    = safeParse(KEY_PLOTS, []);
+  let cfg      = safeParse(KEY_CFG, { limitDaily:50, limitHour:20, sort:"desc", farmId:"", plotId:"" });
+  let queue    = safeParse(KEY_QUEUE, {
+    upserts: { farms:[], plots:[], readings:[] },
+    deletes: { farms:[], plots:[], readings:[] }
+  });
 
-  function loadQueue(){
-    try {
-      return JSON.parse(localStorage.getItem(KEY_QUEUE)) ?? { upserts: [], deletes: [] };
-    } catch {
-      return { upserts: [], deletes: [] };
-    }
-  }
-  function saveQueue(q){
-    localStorage.setItem(KEY_QUEUE, JSON.stringify(q));
+  function saveAll(){
+    safeSave(KEY_READ, readings);
+    safeSave(KEY_FARMS, farms);
+    safeSave(KEY_PLOTS, plots);
+    safeSave(KEY_CFG, cfg);
+    localStorage.setItem(KEY_QUEUE, JSON.stringify(queue));
   }
 
   /***********************
    *  UTILS
    ***********************/
   const pad2 = n => String(n).padStart(2,"0");
+  const sum = arr => arr.reduce((s,x)=>s+x,0);
+  const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : (String(Date.now()) + Math.random().toString(16).slice(2)));
+
   function toLocalInputValue(d){
     return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
   }
@@ -275,20 +268,11 @@
     const d = new Date(v);
     return isNaN(d.getTime()) ? null : d;
   }
-  function sameDay(a,b){
-    return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
-  }
   function ymd(d){
     return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
   }
-  function sum(arr){ return arr.reduce((s,x)=>s+x,0); }
-  function downloadText(filename, text){
-    const blob = new Blob([text], {type:"text/plain;charset=utf-8"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href=url; a.download=filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
+  function sameDay(a,b){
+    return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
   }
   function escapeHtml(s){
     return (s+"")
@@ -298,6 +282,46 @@
       .replaceAll('"',"&quot;")
       .replaceAll("'","&#039;");
   }
+  function downloadText(filename, text){
+    const blob = new Blob([text], {type:"text/plain;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  /***********************
+   *  DOM
+   ***********************/
+  const elDt = document.getElementById("dt");
+  const elMm = document.getElementById("mm");
+  const elStation = document.getElementById("station");
+  const elObs = document.getElementById("obs");
+  const elTbody = document.getElementById("tbody");
+  const elCountInfo = document.getElementById("countInfo");
+  const elRange = document.getElementById("filterRange");
+  const elSearch = document.getElementById("search");
+  const elKpiToday = document.getElementById("kpiToday");
+  const elKpiHour = document.getElementById("kpiHour");
+  const elKpiMonth = document.getElementById("kpiMonth");
+  const elTag = document.getElementById("statusTag");
+  const elLimitDaily = document.getElementById("limitDaily");
+  const elLimitHour = document.getElementById("limitHour");
+  const elNotifyBtn = document.getElementById("btnNotify");
+  const elNotifyState = document.getElementById("notifyState");
+  const elAuthState = document.getElementById("authState");
+  const elSyncState = document.getElementById("syncState");
+  const elScopePill = document.getElementById("scopePill");
+
+  const farmSelect = document.getElementById("farmSelect");
+  const plotSelect = document.getElementById("plotSelect");
+
+  elDt.value = toLocalInputValue(new Date());
+  elLimitDaily.value = cfg.limitDaily;
+  elLimitHour.value = cfg.limitHour;
+
+  function setSyncState(msg){ elSyncState.textContent = "Sync: " + msg; }
 
   /***********************
    *  CHART
@@ -313,7 +337,6 @@
     const baseY = H - pad;
     const baseX = pad;
 
-    ctx.globalAlpha = 1;
     ctx.lineWidth = 1;
     ctx.strokeStyle = "#223159";
     ctx.beginPath();
@@ -336,7 +359,7 @@
     ctx.font="12px system-ui";
     for(let i=0;i<=4;i++){
       const v = (max/4)*i;
-      const y = baseY - ( (baseY-pad) * (v/max) );
+      const y = baseY - ((baseY-pad)*(v/max));
       ctx.globalAlpha = 0.35;
       ctx.beginPath();
       ctx.moveTo(baseX, y);
@@ -346,14 +369,13 @@
       ctx.fillText(v.toFixed(0)+"mm", 4, y+4);
     }
 
-    dailyPairs.forEach((p, i)=>{
-      const h = ((baseY-pad) * (p.mm/max));
+    dailyPairs.forEach((p,i)=>{
+      const h = ((baseY-pad)*(p.mm/max));
       const x = baseX + 2 + i*(barW+2);
       const y = baseY - h;
-
       ctx.globalAlpha = 0.9;
       ctx.fillStyle = "#2f5bff";
-      ctx.fillRect(x, y, barW, h);
+      ctx.fillRect(x,y,barW,h);
 
       if(dailyPairs.length <= 14 || i % Math.ceil(dailyPairs.length/10) === 0){
         ctx.globalAlpha = 1;
@@ -372,9 +394,7 @@
   }
 
   /***********************
-   *  SUPABASE (CLOUD)
-   *  Tabela: rain_readings
-   *  colunas: id (uuid pk), user_id (uuid), ts (bigint), mm (numeric), station (text), obs (text)
+   *  AUTH
    ***********************/
   async function getUser(){
     const { data, error } = await sb.auth.getUser();
@@ -382,95 +402,140 @@
     return data?.user ?? null;
   }
 
-  async function loadFromCloud(){
+  async function refreshAuthUI(){
+    const { data: { session } } = await sb.auth.getSession();
+    if(session?.user){
+      elAuthState.textContent = "Logado: " + session.user.email;
+      setSyncState("Pronto. Sync automático ativo.");
+    }else{
+      elAuthState.textContent = "Deslogado";
+      setSyncState("—");
+    }
+  }
+
+  document.getElementById("btnLogin").addEventListener("click", async ()=>{
+    const email = document.getElementById("email").value.trim();
+    if(!email) return alert("Informe seu email.");
+
+    try{
+      // use sua URL do GitHub Pages aqui:
+      const redirectTo = window.location.origin + window.location.pathname;
+      const { error } = await sb.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectTo }
+      });
+      if(error) throw error;
+      alert("Enviei um link de login para seu email. Abra e confirme.");
+    }catch(e){
+      alert("Falha ao enviar link: " + (e?.message || e));
+    }
+  });
+
+  document.getElementById("btnLogout").addEventListener("click", async ()=>{
+    await sb.auth.signOut();
+  });
+
+  document.getElementById("btnSync").addEventListener("click", async ()=>{
+    await syncNow({ pullAfter:true });
+  });
+
+  /***********************
+   *  QUEUE (offline)
+   ***********************/
+  function qUpsert(kind, item){
+    queue.upserts[kind] = queue.upserts[kind].filter(x => x.id !== item.id);
+    queue.upserts[kind].push(item);
+    queue.deletes[kind] = queue.deletes[kind].filter(id => id !== item.id);
+    localStorage.setItem(KEY_QUEUE, JSON.stringify(queue));
+  }
+  function qDelete(kind, id){
+    queue.upserts[kind] = queue.upserts[kind].filter(x => x.id !== id);
+    if(!queue.deletes[kind].includes(id)) queue.deletes[kind].push(id);
+    localStorage.setItem(KEY_QUEUE, JSON.stringify(queue));
+  }
+
+  /***********************
+   *  CLOUD CRUD
+   ***********************/
+  async function loadCloud(kind){
     const user = await getUser();
     if(!user) return null;
 
+    if(kind === "farms"){
+      const { data, error } = await sb.from("farms").select("id,name").order("created_at",{ascending:true});
+      if(error) throw error;
+      return (data||[]).map(x=>({id:x.id, name:x.name}));
+    }
+    if(kind === "plots"){
+      const { data, error } = await sb.from("plots").select("id,farm_id,name").order("created_at",{ascending:true});
+      if(error) throw error;
+      return (data||[]).map(x=>({id:x.id, farm_id:x.farm_id, name:x.name}));
+    }
+    // readings
     const { data, error } = await sb
       .from("rain_readings")
-      .select("id, ts, mm, station, obs")
-      .order("ts", { ascending:false });
-
+      .select("id,ts,mm,station,obs,farm_id,plot_id")
+      .order("ts",{ascending:false});
     if(error) throw error;
-
-    return (data || []).map(x => ({
-      id: x.id,
-      ts: Number(x.ts),
-      mm: Number(x.mm),
-      station: x.station || "",
-      obs: x.obs || ""
+    return (data||[]).map(x=>({
+      id:x.id, ts:Number(x.ts), mm:Number(x.mm),
+      station:x.station||"", obs:x.obs||"",
+      farm_id:x.farm_id, plot_id:x.plot_id
     }));
   }
 
-  async function upsertToCloud(items){
+  async function upsertCloud(kind, items){
     const user = await getUser();
     if(!user) return false;
 
-    const payload = items.map(it => ({
-      id: it.id,
-      user_id: user.id,
-      ts: it.ts,
-      mm: it.mm,
-      station: it.station || "",
-      obs: it.obs || ""
+    if(kind === "farms"){
+      const payload = items.map(it=>({ id:it.id, user_id:user.id, name:it.name }));
+      const { error } = await sb.from("farms").upsert(payload,{onConflict:"id"});
+      if(error) throw error;
+      return true;
+    }
+    if(kind === "plots"){
+      const payload = items.map(it=>({ id:it.id, user_id:user.id, farm_id:it.farm_id, name:it.name }));
+      const { error } = await sb.from("plots").upsert(payload,{onConflict:"id"});
+      if(error) throw error;
+      return true;
+    }
+
+    // readings
+    const payload = items.map(it=>({
+      id:it.id, user_id:user.id, ts:it.ts, mm:it.mm,
+      station:it.station||"", obs:it.obs||"",
+      farm_id:it.farm_id, plot_id:it.plot_id
     }));
-
-    const { error } = await sb
-      .from("rain_readings")
-      .upsert(payload, { onConflict: "id" });
-
+    const { error } = await sb.from("rain_readings").upsert(payload,{onConflict:"id"});
     if(error) throw error;
     return true;
   }
 
-  // ✅ filtra por user_id também
-  async function deleteFromCloud(ids){
+  async function deleteCloud(kind, ids){
     const user = await getUser();
     if(!user) return false;
+    if(!ids.length) return true;
 
-    const { error } = await sb
-      .from("rain_readings")
-      .delete()
-      .in("id", ids)
-      .eq("user_id", user.id);
-
+    const table = (kind==="farms") ? "farms" : (kind==="plots" ? "plots" : "rain_readings");
+    const { error } = await sb.from(table).delete().in("id", ids).eq("user_id", user.id);
     if(error) throw error;
     return true;
   }
 
   /***********************
-   *  SYNC ENGINE (offline-first)
-   *  + Auto Sync
-   *  + Realtime (quase instantâneo)
+   *  SYNC ENGINE
    ***********************/
-  const elAuthState = document.getElementById("authState");
-  const elSyncState = document.getElementById("syncState");
-
-  function setSyncState(msg){
-    elSyncState.textContent = "Sync: " + msg;
-  }
-
-  function queueUpsert(item){
-    const q = loadQueue();
-    q.upserts = q.upserts.filter(x => x.id !== item.id);
-    q.upserts.push(item);
-    q.deletes = q.deletes.filter(id => id !== item.id);
-    saveQueue(q);
-  }
-
-  function queueDelete(id){
-    const q = loadQueue();
-    q.upserts = q.upserts.filter(x => x.id !== id);
-    if(!q.deletes.includes(id)) q.deletes.push(id);
-    saveQueue(q);
-  }
-
   let syncing = false;
+  let syncTimer = null;
+
+  function scheduleSync(delayMs=800){
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(()=>syncNow({pullAfter:true}).catch(()=>{}), delayMs);
+  }
 
   async function syncNow({pullAfter=true} = {}){
     if(syncing) return;
-
-    // sem internet → mantém na fila
     if(!navigator.onLine){
       setSyncState("Offline. Vou sincronizar quando voltar.");
       return;
@@ -484,60 +549,56 @@
 
     syncing = true;
     try{
-      const q = loadQueue();
+      const q = safeParse(KEY_QUEUE, queue);
+      const hasPending =
+        (q.upserts.farms.length||q.deletes.farms.length||
+         q.upserts.plots.length||q.deletes.plots.length||
+         q.upserts.readings.length||q.deletes.readings.length);
 
-      if(!q.upserts.length && !q.deletes.length){
-        setSyncState("Nada pendente. Atualizando da nuvem...");
-        if(pullAfter){
-          const cloud = await loadFromCloud();
-          if(cloud){ data = cloud; saveData(data); render(); }
-        }
-        setSyncState("Sincronizado ✅");
-        return;
+      if(hasPending){
+        setSyncState(`Enviando... (F:${q.upserts.farms.length}/${q.deletes.farms.length} • T:${q.upserts.plots.length}/${q.deletes.plots.length} • R:${q.upserts.readings.length}/${q.deletes.readings.length})`);
+
+        // ORDEM IMPORTA (para não quebrar FK):
+        // 1) upsert farms, 2) upsert plots, 3) upsert readings
+        if(q.upserts.farms.length) await upsertCloud("farms", q.upserts.farms);
+        if(q.upserts.plots.length) await upsertCloud("plots", q.upserts.plots);
+        if(q.upserts.readings.length) await upsertCloud("readings", q.upserts.readings);
+
+        // deletes inverso: readings -> plots -> farms
+        if(q.deletes.readings.length) await deleteCloud("readings", q.deletes.readings);
+        if(q.deletes.plots.length) await deleteCloud("plots", q.deletes.plots);
+        if(q.deletes.farms.length) await deleteCloud("farms", q.deletes.farms);
+
+        queue = { upserts:{farms:[],plots:[],readings:[]}, deletes:{farms:[],plots:[],readings:[]} };
+        localStorage.setItem(KEY_QUEUE, JSON.stringify(queue));
       }
 
-      setSyncState(`Enviando... (upserts: ${q.upserts.length}, deletes: ${q.deletes.length})`);
-
-      // 1) deletes
-      if(q.deletes.length){
-        await deleteFromCloud(q.deletes);
-      }
-
-      // 2) upserts
-      if(q.upserts.length){
-        await upsertToCloud(q.upserts);
-      }
-
-      // limpa fila
-      saveQueue({ upserts: [], deletes: [] });
-
-      // puxa estado oficial
       if(pullAfter){
-        const cloud = await loadFromCloud();
-        if(cloud){ data = cloud; saveData(data); }
+        const [cf, cp, cr] = await Promise.all([
+          loadCloud("farms"),
+          loadCloud("plots"),
+          loadCloud("readings")
+        ]);
+        if(cf){ farms = cf; safeSave(KEY_FARMS, farms); }
+        if(cp){ plots = cp; safeSave(KEY_PLOTS, plots); }
+        if(cr){ readings = cr; safeSave(KEY_READ, readings); }
       }
 
       setSyncState("Sincronizado ✅");
+      ensureScopeDefaults();
+      renderSelectors();
       render();
     }catch(e){
-      // mantém fila para tentar depois
-      setSyncState("Falhou (offline/erro). Mantive na fila.");
       console.log(e);
+      setSyncState("Falhou (erro). Mantive na fila.");
     } finally {
       syncing = false;
     }
   }
 
-  // ✅ AUTO SYNC: agenda para evitar spam
-  let syncTimer = null;
-  function scheduleSync(delayMs = 1200){
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => {
-      syncNow({ pullAfter:true }).catch(()=>{});
-    }, delayMs);
-  }
-
-  // ✅ REALTIME: atualiza quando outro aparelho mudar algo
+  /***********************
+   *  REALTIME
+   ***********************/
   let realtimeSub = null;
 
   async function startRealtime(){
@@ -545,65 +606,256 @@
     if(!user) return;
     if(realtimeSub) return;
 
-    realtimeSub = sb.channel("rain_readings_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "rain_readings",
-          filter: `user_id=eq.${user.id}`
-        },
-        () => {
-          setSyncState("Mudança detectada. Atualizando...");
-          scheduleSync(300);
-        }
-      )
+    realtimeSub = sb.channel("rain_realtime_all")
+      .on("postgres_changes", {event:"*", schema:"public", table:"farms", filter:`user_id=eq.${user.id}`}, ()=>scheduleSync(250))
+      .on("postgres_changes", {event:"*", schema:"public", table:"plots", filter:`user_id=eq.${user.id}`}, ()=>scheduleSync(250))
+      .on("postgres_changes", {event:"*", schema:"public", table:"rain_readings", filter:`user_id=eq.${user.id}`}, ()=>scheduleSync(250))
       .subscribe();
   }
 
   async function stopRealtime(){
     if(realtimeSub){
-      try{ await sb.removeChannel(realtimeSub); } catch(e){}
+      try{ await sb.removeChannel(realtimeSub); }catch(e){}
       realtimeSub = null;
     }
   }
 
+  sb.auth.onAuthStateChange(async (_event, session)=>{
+    if(session?.user){
+      elAuthState.textContent = "Logado: " + session.user.email;
+      await startRealtime();
+      scheduleSync(100);
+    }else{
+      elAuthState.textContent = "Deslogado";
+      await stopRealtime();
+    }
+  });
+
   /***********************
-   *  APP STATE
+   *  FAZENDA/TALHÃO: SELECTORS + CRUD
    ***********************/
-  let data = loadData();
-  let cfg = loadCfg();
+  function ensureScopeDefaults(){
+    // se não houver nada, não força
+    if(farms.length && !cfg.farmId) cfg.farmId = farms[0].id;
 
-  const elDt = document.getElementById("dt");
-  const elMm = document.getElementById("mm");
-  const elStation = document.getElementById("station");
-  const elObs = document.getElementById("obs");
-  const elTbody = document.getElementById("tbody");
-  const elCountInfo = document.getElementById("countInfo");
-  const elRange = document.getElementById("filterRange");
-  const elSearch = document.getElementById("search");
-  const elKpiToday = document.getElementById("kpiToday");
-  const elKpiHour = document.getElementById("kpiHour");
-  const elKpiMonth = document.getElementById("kpiMonth");
-  const elTag = document.getElementById("statusTag");
-  const elLimitDaily = document.getElementById("limitDaily");
-  const elLimitHour = document.getElementById("limitHour");
-  const elNotifyBtn = document.getElementById("btnNotify");
-  const elNotifyState = document.getElementById("notifyState");
-  const filePick = document.getElementById("filePick");
+    const plotsInFarm = plots.filter(p=>p.farm_id === cfg.farmId);
+    if(plotsInFarm.length && !plotsInFarm.some(p=>p.id===cfg.plotId)){
+      cfg.plotId = plotsInFarm[0].id;
+    }
+    safeSave(KEY_CFG, cfg);
+  }
 
-  elDt.value = toLocalInputValue(new Date());
-  elLimitDaily.value = cfg.limitDaily;
-  elLimitHour.value = cfg.limitHour;
+  function renderSelectors(){
+    // farms
+    farmSelect.innerHTML = "";
+    if(!farms.length){
+      const opt = document.createElement("option");
+      opt.value = ""; opt.textContent = "Nenhuma fazenda (crie uma)";
+      farmSelect.appendChild(opt);
+    }else{
+      farms.forEach(f=>{
+        const opt = document.createElement("option");
+        opt.value = f.id; opt.textContent = f.name;
+        farmSelect.appendChild(opt);
+      });
+    }
+    farmSelect.value = cfg.farmId || (farms[0]?.id || "");
 
+    // plots
+    const fId = farmSelect.value;
+    const inFarm = plots.filter(p=>p.farm_id === fId);
+    plotSelect.innerHTML = "";
+    if(!inFarm.length){
+      const opt = document.createElement("option");
+      opt.value=""; opt.textContent = "Nenhum talhão (crie um)";
+      plotSelect.appendChild(opt);
+    }else{
+      inFarm.forEach(p=>{
+        const opt = document.createElement("option");
+        opt.value = p.id; opt.textContent = p.name;
+        plotSelect.appendChild(opt);
+      });
+    }
+    // define plot atual
+    if(inFarm.length){
+      if(!cfg.plotId || !inFarm.some(p=>p.id===cfg.plotId)) cfg.plotId = inFarm[0].id;
+      plotSelect.value = cfg.plotId;
+    }else{
+      cfg.plotId = "";
+      plotSelect.value = "";
+    }
+    safeSave(KEY_CFG, cfg);
+
+    // pill
+    const fName = farms.find(x=>x.id===cfg.farmId)?.name || "Sem fazenda";
+    const pName = plots.find(x=>x.id===cfg.plotId)?.name || "Sem talhão";
+    elScopePill.textContent = `${fName} • ${pName}`;
+  }
+
+  farmSelect.addEventListener("change", ()=>{
+    cfg.farmId = farmSelect.value;
+    cfg.plotId = ""; // reseta e escolhe o primeiro do novo farm
+    safeSave(KEY_CFG, cfg);
+    ensureScopeDefaults();
+    renderSelectors();
+    render();
+  });
+
+  plotSelect.addEventListener("change", ()=>{
+    cfg.plotId = plotSelect.value;
+    safeSave(KEY_CFG, cfg);
+    renderSelectors();
+    render();
+  });
+
+  function promptMenu(title, options){
+    const txt = options.map((o,i)=>`${i+1}) ${o}`).join("\n");
+    const ans = prompt(`${title}\n\n${txt}\n\nDigite o número:`);
+    const n = Number(ans);
+    if(!n || n<1 || n>options.length) return null;
+    return n;
+  }
+
+  document.getElementById("btnFarmManage").addEventListener("click", ()=>{
+    const choice = promptMenu("Gerenciar Fazendas", ["Adicionar", "Renomear", "Excluir"]);
+    if(!choice) return;
+
+    if(choice===1){
+      const name = prompt("Nome da fazenda:");
+      if(!name) return;
+      const f = { id: uuid(), name: name.trim() };
+      farms.push(f);
+      safeSave(KEY_FARMS, farms);
+      qUpsert("farms", f);
+      if(!cfg.farmId) cfg.farmId = f.id;
+      safeSave(KEY_CFG, cfg);
+      renderSelectors();
+      render();
+      scheduleSync(400);
+      return;
+    }
+
+    if(!farms.length) return alert("Nenhuma fazenda para editar.");
+    const current = farms.find(x=>x.id===cfg.farmId) || farms[0];
+
+    if(choice===2){
+      const name = prompt("Novo nome:", current.name);
+      if(!name) return;
+      current.name = name.trim();
+      safeSave(KEY_FARMS, farms);
+      qUpsert("farms", current);
+      renderSelectors();
+      render();
+      scheduleSync(400);
+      return;
+    }
+
+    // excluir fazenda (também remove talhões e leituras localmente; cloud vai respeitar FK e deletar por cascade em plots)
+    if(choice===3){
+      if(!confirm(`Excluir fazenda "${current.name}"? Isso remove os talhões e registros relacionados.`)) return;
+
+      const farmId = current.id;
+
+      // ids locais relacionados
+      const plotIds = plots.filter(p=>p.farm_id===farmId).map(p=>p.id);
+      const readingIds = readings.filter(r=>r.farm_id===farmId).map(r=>r.id);
+
+      // remove local
+      farms = farms.filter(f=>f.id!==farmId);
+      plots = plots.filter(p=>p.farm_id!==farmId);
+      readings = readings.filter(r=>r.farm_id!==farmId);
+
+      safeSave(KEY_FARMS, farms);
+      safeSave(KEY_PLOTS, plots);
+      safeSave(KEY_READ, readings);
+
+      // fila deletar (ordem)
+      readingIds.forEach(id=>qDelete("readings", id));
+      plotIds.forEach(id=>qDelete("plots", id));
+      qDelete("farms", farmId);
+
+      // ajusta scope
+      cfg.farmId = farms[0]?.id || "";
+      cfg.plotId = "";
+      safeSave(KEY_CFG, cfg);
+      ensureScopeDefaults();
+      renderSelectors();
+      render();
+      scheduleSync(400);
+    }
+  });
+
+  document.getElementById("btnPlotManage").addEventListener("click", ()=>{
+    if(!cfg.farmId) return alert("Crie/Selecione uma fazenda primeiro.");
+
+    const choice = promptMenu("Gerenciar Talhões", ["Adicionar", "Renomear", "Excluir"]);
+    if(!choice) return;
+
+    const inFarm = plots.filter(p=>p.farm_id===cfg.farmId);
+
+    if(choice===1){
+      const name = prompt("Nome do talhão:");
+      if(!name) return;
+      const p = { id: uuid(), farm_id: cfg.farmId, name: name.trim() };
+      plots.push(p);
+      safeSave(KEY_PLOTS, plots);
+      qUpsert("plots", p);
+      cfg.plotId = p.id;
+      safeSave(KEY_CFG, cfg);
+      renderSelectors();
+      render();
+      scheduleSync(400);
+      return;
+    }
+
+    if(!inFarm.length) return alert("Nenhum talhão para editar nesta fazenda.");
+    const current = inFarm.find(x=>x.id===cfg.plotId) || inFarm[0];
+
+    if(choice===2){
+      const name = prompt("Novo nome:", current.name);
+      if(!name) return;
+      current.name = name.trim();
+      safeSave(KEY_PLOTS, plots);
+      qUpsert("plots", current);
+      renderSelectors();
+      render();
+      scheduleSync(400);
+      return;
+    }
+
+    if(choice===3){
+      if(!confirm(`Excluir talhão "${current.name}"? Isso remove os registros relacionados.`)) return;
+      const plotId = current.id;
+      const readingIds = readings.filter(r=>r.plot_id===plotId).map(r=>r.id);
+
+      plots = plots.filter(p=>p.id!==plotId);
+      readings = readings.filter(r=>r.plot_id!==plotId);
+
+      safeSave(KEY_PLOTS, plots);
+      safeSave(KEY_READ, readings);
+
+      readingIds.forEach(id=>qDelete("readings", id));
+      qDelete("plots", plotId);
+
+      cfg.plotId = "";
+      safeSave(KEY_CFG, cfg);
+      ensureScopeDefaults();
+      renderSelectors();
+      render();
+      scheduleSync(400);
+    }
+  });
+
+  /***********************
+   *  FILTER + KPIs
+   ***********************/
   function getFiltered(){
-    const q = (elSearch.value || "").toLowerCase().trim();
+    const q = (elSearch.value||"").toLowerCase().trim();
     const range = elRange.value;
 
-    let arr = [...data];
+    let arr = readings.filter(r => r.farm_id===cfg.farmId && r.plot_id===cfg.plotId);
 
-    arr.sort((a,b)=> cfg.sort === "desc" ? (b.ts - a.ts) : (a.ts - b.ts));
+    arr.sort((a,b)=> cfg.sort==="desc" ? (b.ts-a.ts) : (a.ts-b.ts));
 
     if(range !== "all"){
       const days = Number(range);
@@ -617,46 +869,36 @@
         (x.obs||"").toLowerCase().includes(q)
       );
     }
-
     return arr;
   }
 
   function computeKPIs(){
     const now = new Date();
-    const todaySum = sum(data
-      .filter(x => sameDay(new Date(x.ts), now))
-      .map(x => Number(x.mm)||0));
+    const scope = readings.filter(r => r.farm_id===cfg.farmId && r.plot_id===cfg.plotId);
 
+    const todaySum = sum(scope.filter(x => sameDay(new Date(x.ts), now)).map(x => Number(x.mm)||0));
     const hourAgo = Date.now() - 3600*1000;
-    const hourSum = sum(data
-      .filter(x => x.ts >= hourAgo)
-      .map(x => Number(x.mm)||0));
-
-    const monthSum = sum(data
-      .filter(x => {
-        const d = new Date(x.ts);
-        return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
-      })
-      .map(x => Number(x.mm)||0));
+    const hourSum = sum(scope.filter(x => x.ts >= hourAgo).map(x => Number(x.mm)||0));
+    const monthSum = sum(scope.filter(x => {
+      const d = new Date(x.ts);
+      return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+    }).map(x => Number(x.mm)||0));
 
     elKpiToday.textContent = todaySum.toFixed(1) + " mm";
-    elKpiHour.textContent = hourSum.toFixed(1) + " mm";
+    elKpiHour.textContent  = hourSum.toFixed(1) + " mm";
     elKpiMonth.textContent = monthSum.toFixed(1) + " mm";
 
     const daily = Number(cfg.limitDaily)||0;
     const hourly = Number(cfg.limitHour)||0;
 
-    let level = "ok";
-    let text = "OK";
-
+    let level="ok", text="Sem alerta";
     if(daily>0 && todaySum >= daily){ level="bad"; text="Alerta diário"; }
     else if(hourly>0 && hourSum >= hourly){ level="warn"; text="Alerta 1h"; }
-    else { level="ok"; text="Sem alerta"; }
 
     elTag.className = "tag " + level;
     elTag.textContent = text;
 
-    return {todaySum, hourSum, monthSum, level, text};
+    return {level, todaySum, hourSum};
   }
 
   function computeDailyBars(filtered){
@@ -666,24 +908,60 @@
       const key = ymd(d);
       map.set(key, (map.get(key)||0) + (Number(x.mm)||0));
     });
-    const pairs = [...map.entries()]
-      .sort((a,b)=> a[0].localeCompare(b[0]))
-      .map(([day,mm])=>({day,mm}));
-    return pairs;
+    return [...map.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([day,mm])=>({day,mm}));
   }
 
+  /***********************
+   *  NOTIFICATIONS
+   ***********************/
+  let notifiedKey = "";
+  async function enableNotify(){
+    if(!("Notification" in window)){
+      elNotifyState.textContent = "Não suportado";
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    elNotifyState.textContent = (perm==="granted") ? "Ativado" : "Bloqueado";
+  }
+  function maybeNotify(k){
+    if(!("Notification" in window)) return;
+    if(Notification.permission !== "granted") return;
+    if(k.level==="ok"){ notifiedKey=""; return; }
+
+    const today = ymd(new Date());
+    const key = `${today}:${cfg.farmId}:${cfg.plotId}:${k.level}:${cfg.limitDaily}:${cfg.limitHour}`;
+    if(key===notifiedKey) return;
+
+    const msg = (k.level==="bad")
+      ? `A chuva de hoje chegou a ${k.todaySum.toFixed(1)}mm (limite ${cfg.limitDaily}mm).`
+      : `Na última 1 hora: ${k.hourSum.toFixed(1)}mm (limite ${cfg.limitHour}mm).`;
+
+    new Notification("Controle de Chuva", { body: msg });
+    notifiedKey = key;
+  }
+
+  /***********************
+   *  RENDER
+   ***********************/
   function render(){
+    renderSelectors();
+
     const filtered = getFiltered();
-    elCountInfo.textContent = `${filtered.length} registro(s) mostrado(s) • ${data.length} total`;
+    elCountInfo.textContent = `${filtered.length} registro(s) • ${readings.length} total (todas fazendas)`;
 
     elTbody.innerHTML = "";
     filtered.forEach(item=>{
       const tr = document.createElement("tr");
       const d = new Date(item.ts);
 
+      const fName = farms.find(x=>x.id===item.farm_id)?.name || "—";
+      const pName = plots.find(x=>x.id===item.plot_id)?.name || "—";
+
       tr.innerHTML = `
         <td>${d.toLocaleString()}</td>
         <td><strong>${Number(item.mm).toFixed(1)}</strong></td>
+        <td>${escapeHtml(fName)}</td>
+        <td>${escapeHtml(pName)}</td>
         <td>${escapeHtml(item.station||"—")}</td>
         <td>${escapeHtml(item.obs||"")}</td>
         <td><button class="ghost" data-del="${item.id}">Excluir</button></td>
@@ -699,135 +977,37 @@
   }
 
   /***********************
-   *  NOTIFICATIONS
-   ***********************/
-  let notifiedKey = "";
-  async function enableNotify(){
-    if(!("Notification" in window)){
-      elNotifyState.textContent = "Não suportado neste navegador";
-      return;
-    }
-    const perm = await Notification.requestPermission();
-    elNotifyState.textContent = (perm === "granted") ? "Ativado" : "Bloqueado";
-  }
-  function maybeNotify(k){
-    if(!("Notification" in window)) return;
-    if(Notification.permission !== "granted") return;
-
-    const today = ymd(new Date());
-    const key = `${today}:${k.level}:${cfg.limitDaily}:${cfg.limitHour}`;
-
-    if(k.level === "ok") { notifiedKey = ""; return; }
-    if(key === notifiedKey) return;
-
-    const msg = (k.level === "bad")
-      ? `A chuva de hoje chegou a ${document.getElementById("kpiToday").textContent} (limite ${cfg.limitDaily}mm).`
-      : `Na última 1 hora: ${document.getElementById("kpiHour").textContent} (limite ${cfg.limitHour}mm).`;
-
-    new Notification("Controle de Chuva", { body: msg });
-    notifiedKey = key;
-  }
-
-  /***********************
-   *  PDF
-   ***********************/
-  function saveAsPDF(){
-    const img = document.getElementById("chartImg");
-    try{ img.src = canvas.toDataURL("image/png"); } catch(e){}
-    const oldTitle = document.title;
-    document.title = "controle-de-chuva-" + ymd(new Date());
-    window.print();
-    document.title = oldTitle;
-  }
-  document.getElementById("btnPdf").addEventListener("click", saveAsPDF);
-
-  /***********************
-   *  LOGIN (MAGIC LINK)
-   ***********************/
-  document.getElementById("btnLogin").addEventListener("click", async ()=>{
-    const email = document.getElementById("email").value.trim();
-    if(!email) return alert("Informe seu email.");
-
-    try{
-      const redirectTo = "https://tiagouchiha2014-max.github.io/controle/";
-      const { error } = await sb.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: redirectTo }
-      });
-      if(error) throw error;
-
-      alert("Enviei um link de login para seu email. Abra no celular e confirme.");
-    }catch(e){
-      alert("Falha ao enviar link: " + (e?.message || e));
-    }
-  });
-
-  document.getElementById("btnLogout").addEventListener("click", async ()=>{
-    await sb.auth.signOut();
-  });
-
-  document.getElementById("btnSync").addEventListener("click", async ()=>{
-    await syncNow({pullAfter:true});
-  });
-
-  async function refreshAuthUI(){
-    const { data: { session } } = await sb.auth.getSession();
-    if(session?.user){
-      elAuthState.textContent = "Logado: " + session.user.email;
-      setSyncState("Pronto. Sync automático ativo.");
-    }else{
-      elAuthState.textContent = "Deslogado";
-      setSyncState("—");
-    }
-  }
-
-  // quando logar/voltar de redirect do email
-  sb.auth.onAuthStateChange(async (_event, session)=>{
-    if(session?.user){
-      elAuthState.textContent = "Logado: " + session.user.email;
-
-      // ✅ inicia realtime e sincroniza
-      await startRealtime();
-      await syncNow({pullAfter:true});
-    }else{
-      elAuthState.textContent = "Deslogado";
-      await stopRealtime();
-    }
-  });
-
-  /***********************
    *  ACTIONS
    ***********************/
-  document.getElementById("btnAdd").addEventListener("click", async ()=>{
+  document.getElementById("btnAdd").addEventListener("click", ()=>{
+    if(!cfg.farmId) return alert("Crie uma fazenda primeiro.");
+    if(!cfg.plotId) return alert("Crie um talhão primeiro.");
+
     const d = parseLocalInput(elDt.value);
     const mm = Number(elMm.value);
-    if(!d){ alert("Data/hora inválida."); return; }
-    if(!(mm >= 0)){ alert("Informe mm (número >= 0)."); return; }
+    if(!d) return alert("Data/hora inválida.");
+    if(!(mm >= 0)) return alert("Informe mm (>= 0).");
 
     const item = {
-      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2),
+      id: uuid(),
       ts: d.getTime(),
       mm: Number(mm.toFixed(1)),
       station: (elStation.value||"").trim(),
-      obs: (elObs.value||"").trim()
+      obs: (elObs.value||"").trim(),
+      farm_id: cfg.farmId,
+      plot_id: cfg.plotId
     };
 
-    // salva local primeiro
-    data.push(item);
-    saveData(data);
+    readings.push(item);
+    safeSave(KEY_READ, readings);
+    qUpsert("readings", item);
 
-    // enfileira para sync
-    queueUpsert(item);
-    setSyncState("Pendente (salvo local). Sync automático...");
+    setSyncState("Salvo local. Sync automático...");
+    scheduleSync(600);
 
-    // ✅ AUTO: agenda (evita múltiplas chamadas)
-    scheduleSync(800);
-
-    // reset campos
     elMm.value = "";
     elObs.value = "";
     elDt.value = toLocalInputValue(new Date());
-
     render();
   });
 
@@ -839,9 +1019,9 @@
   });
 
   document.getElementById("btnSort").addEventListener("click", ()=>{
-    cfg.sort = (cfg.sort === "desc") ? "asc" : "desc";
-    saveCfg(cfg);
-    document.getElementById("btnSort").textContent = "Ordenar: " + (cfg.sort === "desc" ? "mais recentes" : "mais antigos");
+    cfg.sort = (cfg.sort==="desc") ? "asc" : "desc";
+    safeSave(KEY_CFG, cfg);
+    document.getElementById("btnSort").textContent = "Ordenar: " + (cfg.sort==="desc" ? "mais recentes" : "mais antigos");
     render();
   });
 
@@ -850,192 +1030,126 @@
 
   elLimitDaily.addEventListener("input", ()=>{
     cfg.limitDaily = Number(elLimitDaily.value)||0;
-    saveCfg(cfg);
+    safeSave(KEY_CFG, cfg);
     render();
   });
   elLimitHour.addEventListener("input", ()=>{
     cfg.limitHour = Number(elLimitHour.value)||0;
-    saveCfg(cfg);
+    safeSave(KEY_CFG, cfg);
     render();
   });
 
   elNotifyBtn.addEventListener("click", enableNotify);
 
-  // delete row
-  elTbody.addEventListener("click", async (e)=>{
+  elTbody.addEventListener("click", (e)=>{
     const btn = e.target.closest("button[data-del]");
     if(!btn) return;
     const id = btn.getAttribute("data-del");
 
-    // remove local
-    data = data.filter(x=>x.id !== id);
-    saveData(data);
-    render();
+    readings = readings.filter(x=>x.id !== id);
+    safeSave(KEY_READ, readings);
 
-    // enfileira delete + auto sync
-    queueDelete(id);
+    qDelete("readings", id);
     setSyncState("Exclusão pendente. Sync automático...");
-
-    // ✅ AUTO
-    scheduleSync(800);
+    scheduleSync(600);
+    render();
   });
 
-  // export CSV (local data atual)
+  // Export CSV (somente escopo atual)
   document.getElementById("btnExport").addEventListener("click", ()=>{
-    const rows = [["datetime","mm","station","obs"]];
-    data
-      .slice()
-      .sort((a,b)=>a.ts-b.ts)
+    const fName = farms.find(x=>x.id===cfg.farmId)?.name || "fazenda";
+    const pName = plots.find(x=>x.id===cfg.plotId)?.name || "talhao";
+    const rows = [["datetime","mm","farm","plot","station","obs"]];
+    readings
+      .filter(r=>r.farm_id===cfg.farmId && r.plot_id===cfg.plotId)
+      .slice().sort((a,b)=>a.ts-b.ts)
       .forEach(x=>{
-        rows.push([new Date(x.ts).toISOString(), x.mm, x.station||"", x.obs||""]);
+        rows.push([new Date(x.ts).toISOString(), x.mm, fName, pName, x.station||"", x.obs||""]);
       });
     const csv = rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n");
-    downloadText("chuva.csv", csv);
+    downloadText(`chuva-${fName}-${pName}.csv`.replaceAll(" ","_"), csv);
   });
 
-  // backup JSON (inclui fila)
+  // Backup JSON (tudo)
   document.getElementById("btnBackup").addEventListener("click", ()=>{
-    const backup = {
-      version:2,
-      exportedAt: new Date().toISOString(),
-      cfg,
-      data,
-      queue: loadQueue()
-    };
-    downloadText("backup-chuva.json", JSON.stringify(backup, null, 2));
+    const backup = { version:3, exportedAt:new Date().toISOString(), cfg, farms, plots, readings, queue: safeParse(KEY_QUEUE, queue) };
+    downloadText("backup-chuva-v3.json", JSON.stringify(backup,null,2));
   });
 
-  // import JSON
-  document.getElementById("btnImport").addEventListener("click", ()=>{
-    filePick.value = "";
-    filePick.click();
-  });
+  // Import JSON
+  const filePick = document.getElementById("filePick");
+  document.getElementById("btnImport").addEventListener("click", ()=>{ filePick.value=""; filePick.click(); });
   filePick.addEventListener("change", async ()=>{
     const file = filePick.files?.[0];
     if(!file) return;
     try{
-      const text = await file.text();
-      const obj = JSON.parse(text);
-      if(!obj || !Array.isArray(obj.data)) throw new Error("Formato inválido");
-
-      data = obj.data;
-      cfg = obj.cfg || cfg;
-
-      saveData(data);
-      saveCfg(cfg);
-
-      if(obj.queue && typeof obj.queue === "object"){
-        saveQueue({
-          upserts: Array.isArray(obj.queue.upserts) ? obj.queue.upserts : [],
-          deletes: Array.isArray(obj.queue.deletes) ? obj.queue.deletes : []
-        });
+      const obj = JSON.parse(await file.text());
+      if(!obj || !Array.isArray(obj.readings) || !Array.isArray(obj.farms) || !Array.isArray(obj.plots)){
+        throw new Error("Formato inválido (esperado v3).");
       }
+      farms = obj.farms; plots = obj.plots; readings = obj.readings;
+      cfg = obj.cfg || cfg;
+      queue = obj.queue || queue;
 
-      elLimitDaily.value = cfg.limitDaily ?? elLimitDaily.value;
-      elLimitHour.value = cfg.limitHour ?? elLimitHour.value;
-
+      saveAll();
+      ensureScopeDefaults();
+      renderSelectors();
       render();
       alert("Importado com sucesso!");
-      // ✅ AUTO: tenta subir o que importou
       scheduleSync(800);
     }catch(err){
       alert("Falha ao importar: " + err.message);
     }
   });
 
-  // wipe (local + fila; nuvem só quando sync rodar)
+  // Wipe local (marca deletes)
   document.getElementById("btnWipe").addEventListener("click", ()=>{
-    if(!confirm("Apagar TODOS os registros locais?")) return;
+    if(!confirm("Apagar TUDO local (fazendas, talhões e registros)?")) return;
 
-    const ids = data.map(x=>x.id);
-    const q = loadQueue();
-    ids.forEach(id=>{
-      q.upserts = q.upserts.filter(x=>x.id !== id);
-      if(!q.deletes.includes(id)) q.deletes.push(id);
-    });
-    saveQueue(q);
+    // marca deletes de tudo que existe localmente
+    readings.forEach(r=>qDelete("readings", r.id));
+    plots.forEach(p=>qDelete("plots", p.id));
+    farms.forEach(f=>qDelete("farms", f.id));
 
-    data = [];
-    saveData(data);
+    farms = []; plots = []; readings = [];
+    cfg.farmId=""; cfg.plotId="";
+    saveAll();
+
+    renderSelectors();
     render();
-    setSyncState("Tudo apagado local. Sync automático vai refletir na nuvem quando possível.");
-    scheduleSync(900);
-  });
-
-  // demo data
-  document.getElementById("btnDemo").addEventListener("click", ()=>{
-    if(!confirm("Gerar dados de teste (substitui o histórico local atual)?")) return;
-    const now = Date.now();
-    const mk = (daysAgo, hour, mm) => ({
-      id: crypto.randomUUID ? crypto.randomUUID() : String(now) + Math.random().toString(16).slice(2),
-      ts: now - daysAgo*24*3600*1000 + hour*3600*1000,
-      mm,
-      station: "Pluviômetro",
-      obs: mm>15 ? "chuva forte" : ""
-    });
-    const demo = [];
-    for(let d=0; d<30; d++){
-      const n = Math.random() < 0.35 ? 0 : (Math.random()<0.5 ? 1 : 2);
-      for(let i=0;i<n;i++){
-        demo.push(mk(d, 6 + Math.floor(Math.random()*12), Number((Math.random()*25).toFixed(1))));
-      }
-    }
-    data = demo;
-    saveData(data);
-
-    const q = loadQueue();
-    demo.forEach(it=>{
-      q.upserts = q.upserts.filter(x => x.id !== it.id);
-      q.upserts.push(it);
-    });
-    saveQueue(q);
-
-    setSyncState("Dados de teste pendentes. Sync automático...");
-    render();
+    setSyncState("Tudo apagado local. Sync automático vai refletir na nuvem.");
     scheduleSync(900);
   });
 
   /***********************
    *  AUTO SYNC TRIGGERS
    ***********************/
-  // ✅ quando internet voltar
-  window.addEventListener("online", () => {
-    setSyncState("Internet voltou. Sync automático...");
-    scheduleSync(500);
-  });
-
-  // ✅ quando voltar para o app/aba
-  document.addEventListener("visibilitychange", () => {
-    if(!document.hidden && navigator.onLine){
-      setSyncState("Voltando ao app. Atualizando...");
-      scheduleSync(200);
-    }
-  });
-
-  // ✅ a cada 2 minutos (seguro e simples)
-  setInterval(() => {
-    if(navigator.onLine) scheduleSync(0);
-  }, 2 * 60 * 1000);
+  window.addEventListener("online", ()=>{ setSyncState("Internet voltou. Sync..."); scheduleSync(250); });
+  document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && navigator.onLine) scheduleSync(200); });
+  setInterval(()=>{ if(navigator.onLine) scheduleSync(0); }, 2*60*1000);
 
   /***********************
    *  INIT
    ***********************/
-  document.getElementById("btnSort").textContent = "Ordenar: " + (cfg.sort === "desc" ? "mais recentes" : "mais antigos");
-  document.getElementById("notifyState").textContent =
-    ("Notification" in window) ? (Notification.permission === "granted" ? "Ativado" : "Desativado") : "Não suportado";
+  document.getElementById("btnSort").textContent = "Ordenar: " + (cfg.sort==="desc" ? "mais recentes" : "mais antigos");
+  elNotifyState.textContent = ("Notification" in window)
+    ? (Notification.permission==="granted" ? "Ativado" : "Desativado")
+    : "Não suportado";
 
-  refreshAuthUI().then(()=>{});
+  // se não existir fazenda/talhão local, deixa o usuário criar
+  ensureScopeDefaults();
+  renderSelectors();
   render();
+  refreshAuthUI();
 
-  // ✅ se já estiver logado ao abrir, inicia realtime e faz sync
-  (async () => {
+  // se já estiver logado, inicia realtime + sync
+  (async ()=>{
     const { data: { session } } = await sb.auth.getSession();
     if(session?.user){
       await startRealtime();
-      scheduleSync(300);
+      scheduleSync(200);
     }
   })();
 </script>
 </body>
 </html>
-```0
